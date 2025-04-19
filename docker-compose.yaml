@@ -1,0 +1,53 @@
+services:
+  alloy:
+    image: grafana/alloy:latest
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - --stability.level=experimental
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+    depends_on:
+      - tuya_collector
+
+  mimir:
+    image: grafana/mimir:latest
+    command:
+      - -usage-stats.enabled=false
+      - -auth.multitenancy-enabled=false
+      - -ingester.ring.replication-factor=1
+    depends_on:
+      - tuya_collector
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_USERS_DEFAULT_THEME=system
+    volumes:
+      - ./grafana.ini:/etc/grafana/grafana.ini
+    ports:
+      - "3002:3000"
+    depends_on:
+      - alloy
+      - mimir
+      - tuya_collector
+
+  tuya_collector:
+    build:
+      dockerfile: Dockerfile
+      network: host
+    environment:
+      DEVICE_LABEL: plug-in-bathroom
+      DEVICE_IP: 192.168.88.91
+      DEVICE_ID: bfca48c3e7d2c422bad1vp
+      DEVICE_LOCAL_KEY_FILE: /run/secrets/device_local_key
+    secrets:
+      - device_local_key
+
+secrets:
+  device_local_key:
+    file: secrets.local
